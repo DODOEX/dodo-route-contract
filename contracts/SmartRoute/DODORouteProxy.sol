@@ -106,19 +106,16 @@ contract DODORouteProxy is InitializableOwnable {
         bytes memory feeData,
         bytes memory callDataConcat,
         uint256 deadLine
-    ) external payable judgeExpired(deadLine) returns (uint256 receiveAmount) {
-        address _toToken = toToken;
-        address _fromToken = fromToken;
-        
+    ) external payable judgeExpired(deadLine) returns (uint256 receiveAmount) {        
         // approve if needed
         if (approveTarget != address(0)) {
-            IERC20(_fromToken).universalApproveMax(approveTarget, fromTokenAmount);
+            IERC20(fromToken).universalApproveMax(approveTarget, fromTokenAmount);
         }
 
         // transfer in fromToken
-        if (_fromToken != _ETH_ADDRESS_) {
+        if (fromToken != _ETH_ADDRESS_) {
             IDODOApproveProxy(_DODO_APPROVE_PROXY_).claimTokens(
-                _fromToken,
+                fromToken,
                 msg.sender,
                 address(this),
                 fromTokenAmount
@@ -126,13 +123,13 @@ contract DODORouteProxy is InitializableOwnable {
         }
 
         // swap
-        uint256 toTokenOriginBalance = IERC20(_toToken).universalBalanceOf(address(this));
+        uint256 toTokenOriginBalance = IERC20(toToken).universalBalanceOf(address(this));
         {
             require(isWhiteListedContract[swapTarget], "DODORouteProxy: Not Whitelist Contract");
             // TODO: require swapTarget != _DODO_APPROVE_PROXY_
             require(swapTarget != _DODO_APPROVE_PROXY_, "DODORouteProxy: Risk Target");
             (bool success, bytes memory result) = swapTarget.call{
-                value: _fromToken == _ETH_ADDRESS_ ? fromTokenAmount : 0
+                value: fromToken == _ETH_ADDRESS_ ? fromTokenAmount : 0
             }(callDataConcat);
             // revert with lowlevel info
             if (success == false) {
@@ -143,13 +140,13 @@ contract DODORouteProxy is InitializableOwnable {
         }
 
         // distribute toToken
-        receiveAmount = IERC20(_toToken).universalBalanceOf(address(this)).sub(
+        receiveAmount = IERC20(toToken).universalBalanceOf(address(this)).sub(
             toTokenOriginBalance
         );
         
         _routeWithdraw(toToken, receiveAmount, feeData, minReturnAmount);
 
-        emit OrderHistory(_fromToken, _toToken, msg.sender, fromTokenAmount, receiveAmount);
+        emit OrderHistory(fromToken, toToken, msg.sender, fromTokenAmount, receiveAmount);
     }
 
     // linear version
