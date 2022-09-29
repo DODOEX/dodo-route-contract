@@ -10,13 +10,12 @@ pragma experimental ABIEncoderV2;
 
 import { IDODOApproveProxy } from "../DODOApproveProxy.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IWETH } from "../intf/IWETH.sol";
 import { DecimalMath } from "../lib/DecimalMath.sol";
 import { UniversalERC20 } from "./lib/UniversalERC20.sol";
 import { IDODOAdapter } from "./intf/IDODOAdapter.sol";
-import { InitializableOwnable } from "../lib/InitializableOwnable.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title DODORouteProxy
@@ -24,8 +23,10 @@ import { InitializableOwnable } from "../lib/InitializableOwnable.sol";
  *
  * @notice Entrance of Split trading in DODO platform
  */
-contract DODORouteProxy is InitializableOwnable {
-    using SafeMath for uint256;
+ // TODO initializableOwnable to be oz's ownerable, done
+contract DODORouteProxy is Ownable {
+    //TODO delet safeMath, done
+
     using UniversalERC20 for IERC20;
 
     // ============ Storage ============
@@ -34,8 +35,9 @@ contract DODORouteProxy is InitializableOwnable {
     address public immutable _WETH_;
     address public immutable _DODO_APPROVE_PROXY_;
     mapping(address => bool) public isWhiteListedContract; // is safe for external call
+    mapping(address => bool) public isApproveWhiteListedContract; // is safe for external approve
 
-    uint256 public routeFeeRate;
+    uint256 public routeFeeRate; // unit is 10**18
     address public routeFeeReceiver;
 
     struct PoolInfo {
@@ -85,6 +87,14 @@ contract DODORouteProxy is InitializableOwnable {
         isWhiteListedContract[contractAddr] = false;
     }
 
+    function addApproveWhiteList(address contractAddr) public onlyOwner {
+        isApproveWhiteListedContract[contractAddr] = true;
+    }
+
+    function removeApproveWhiteList(address contractAddr) public onlyOwner {
+        isApproveWhiteListedContract[contractAddr] = false;
+    }
+
     function changeRouteFeeRate(uint256 newFeeRate) public onlyOwner {
         routeFeeRate = newFeeRate;
     }
@@ -93,9 +103,28 @@ contract DODORouteProxy is InitializableOwnable {
         routeFeeReceiver = newFeeReceiver;
     }
 
+    // TODO onlyOwner转本合约里eth和erc20, done
+    /// @notice used for emergency, generally there wouldn't be tokens left
+    function superWithdraw(address token) public onlyOwner {
+        if(token != _ETH_ADDRESS_) {
+            uint256 restAmount = IERC20(token).universalBalanceOf(address(this));
+            IERC20(token).universalTransfer(payable(routeFeeReceiver), restAmount);
+        } else {
+            uint256 restAmount = address(this).balance;
+            payable(routeFeeReceiver).transfer(restAmount);
+        }
+    }
+
     // ============ Swap ============
 
-    // Call external black box contracts to finish a swap
+    /** 
+     * @notice Call external black box contracts to finish a swap
+     * @param approveTarget external swap approve address
+     * @param swapTarget external swap address
+     * @param feeData route fee info
+     * @param callDataConcat external swap data
+    */
+    // TODO toToken must be WETH(api), external swap to address must be routeProxy
     function externalSwap(
         address fromToken,
         address toToken,
@@ -106,7 +135,10 @@ contract DODORouteProxy is InitializableOwnable {
         bytes memory feeData,
         bytes memory callDataConcat,
         uint256 deadLine
-    ) external payable judgeExpired(deadLine) returns (uint256 receiveAmount) {        
+    ) external payable judgeExpired(deadLine) returns (uint256 receiveAmount) {      
+        require(isWhiteListedContract[swapTarget], "DODORouteProxy: Not Whitelist Contract");  
+        require(isApproveWhiteListedContract[approveTarget], "DODORouteProxy: Not Whitelist Appprove Contract");
+        // TODO approve 加白名单, done
         // approve if needed
         if (approveTarget != address(0)) {
             IERC20(fromToken).universalApproveMax(approveTarget, fromTokenAmount);
@@ -125,8 +157,7 @@ contract DODORouteProxy is InitializableOwnable {
         // swap
         uint256 toTokenOriginBalance = IERC20(toToken).universalBalanceOf(address(this));
         {
-            require(isWhiteListedContract[swapTarget], "DODORouteProxy: Not Whitelist Contract");
-            // TODO: require swapTarget != _DODO_APPROVE_PROXY_
+            // TODO: require swapTarget != _DODO_APPROVE_PROXY_, done
             require(swapTarget != _DODO_APPROVE_PROXY_, "DODORouteProxy: Risk Target");
             (bool success, bytes memory result) = swapTarget.call{
                 value: fromToken == _ETH_ADDRESS_ ? fromTokenAmount : 0
@@ -140,7 +171,7 @@ contract DODORouteProxy is InitializableOwnable {
         }
 
         // distribute toToken
-        receiveAmount = IERC20(toToken).universalBalanceOf(address(this)).sub(
+        receiveAmount = IERC20(toToken).universalBalanceOf(address(this)) - (
             toTokenOriginBalance
         );
         
@@ -149,8 +180,15 @@ contract DODORouteProxy is InitializableOwnable {
         emit OrderHistory(fromToken, toToken, msg.sender, fromTokenAmount, receiveAmount);
     }
 
-    // linear version
-    /// @param mixAdapters: adapter
+    /** 
+     * @notice linear version
+     * @param mixAdapters adapter
+     * @param mixPairs pool address
+     * @param assetTo asset Address（pool or proxy）
+     * @param directions pool directions, one bit represent one pool direction
+     * @param moreInfos pool adapter's Info
+     * @param feeData route fee info
+     */
     function mixSwap(
         address fromToken,
         address toToken,
@@ -205,7 +243,7 @@ contract DODORouteProxy is InitializableOwnable {
 
         // distribute toToken
         
-        receiveAmount = IERC20(_toToken).tokenBalanceOf(address(this)).sub(
+        receiveAmount = IERC20(_toToken).tokenBalanceOf(address(this)) - (
                 toTokenOriginBalance
             );
         }
@@ -214,15 +252,23 @@ contract DODORouteProxy is InitializableOwnable {
         emit OrderHistory(fromToken, toToken, msg.sender, fromTokenAmount, receiveAmount);
     }
 
-    // split version
+    /** 
+     * @notice split version
+     * @param totalWeight one split totalWeight
+     * @param splitNumber record pool number in one split, determine array subscript in transverse
+     * @param midToken middle token to swap
+     * @param assetFrom asset Address（pool or proxy）
+     * @param sequence pool Info sequence
+     * @param feeData route fee info
+    */
     function dodoMutliSwap(
         uint256 fromTokenAmount,
         uint256 minReturnAmount,
         uint256[] memory totalWeight, // TODO: fix totalWeight and del this param
-        uint256[] memory splitNumber, // [1, 3] 记录下标  
+        uint256[] memory splitNumber,  
         address[] memory midToken,
         address[] memory assetFrom,
-        bytes[] memory sequence, // pairSequence
+        bytes[] memory sequence, 
         bytes memory feeData,
         uint256 deadLine
     ) external payable judgeExpired(deadLine) returns (uint256 receiveAmount) {
@@ -234,12 +280,11 @@ contract DODORouteProxy is InitializableOwnable {
         );
         require(minReturnAmount > 0, "DODORouteProxy: RETURN_AMOUNT_ZERO");
         uint256 _fromTokenAmount = fromTokenAmount;
-
         address fromToken = midToken[0];
-        
 
         uint256 toTokenOriginBalance = IERC20(toToken).universalBalanceOf(address(this));
 
+        // transfer in fromToken
         _deposit(
             msg.sender,
             assetFrom[0],
@@ -248,9 +293,11 @@ contract DODORouteProxy is InitializableOwnable {
             fromToken == _ETH_ADDRESS_
         );
 
+        // swap
         _multiSwap(totalWeight, midToken, splitNumber, sequence, assetFrom);
 
-        receiveAmount = IERC20(toToken).tokenBalanceOf(address(this)).sub(
+        // distribute toToken
+        receiveAmount = IERC20(toToken).tokenBalanceOf(address(this)) - (
             toTokenOriginBalance
         );
         }
@@ -279,6 +326,7 @@ contract DODORouteProxy is InitializableOwnable {
             uint256 curTotalAmount = IERC20(midToken[i]).tokenBalanceOf(assetFrom[i - 1]);
             uint256 curTotalWeight = totalWeight[i - 1];
 
+            // one split all pool swap
             for (uint256 j = splitNumber[i - 1]; j < splitNumber[i]; j++) {
                 PoolInfo memory curPoolInfo;
                 {
@@ -294,7 +342,7 @@ contract DODORouteProxy is InitializableOwnable {
                 }
 
                 if (assetFrom[i - 1] == address(this)) {
-                    uint256 curAmount = curTotalAmount.mul(curPoolInfo.weight).div(curTotalWeight);
+                    uint256 curAmount = curTotalAmount * curPoolInfo.weight / curTotalWeight;
 
                     if (curPoolInfo.poolEdition == 1) {
                         //For using transferFrom pool (like dodoV1, Curve)
@@ -339,8 +387,6 @@ contract DODORouteProxy is InitializableOwnable {
             IDODOApproveProxy(_DODO_APPROVE_PROXY_).claimTokens(token, from, to, amount);
         }
     }
-    // TODO 出金部分统一
-    // TODO 添加注释
 
     function _routeWithdraw(
         address toToken,
@@ -356,7 +402,7 @@ contract DODORouteProxy is InitializableOwnable {
         uint256 brokerFee = DecimalMath.mulFloor(receiveAmount, brokerFeeRate);
         IERC20(toToken).universalTransfer(payable(broker), brokerFee);
         
-        receiveAmount = receiveAmount.sub(routeFee).sub(brokerFee);
+        receiveAmount = receiveAmount - routeFee - brokerFee;
         require(receiveAmount >= minReturnAmount, "DODORouteProxy: Return amount is not enough");
         
         if (toToken == _ETH_ADDRESS_) {
