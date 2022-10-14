@@ -17,15 +17,17 @@ import "hardhat/console.sol";
 contract MockAdapter is IDODOAdapter{
     using SafeMath for uint256;
 
-    address _BASE_;
-    address _QUOTE_;
-    uint256 price; //unit is 10**18
-    uint256 baseReserve;
-    uint256 quoteReserve;
+    address _ETH_ = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address immutable public _BASE_;
+    address immutable public _QUOTE_;
+    uint256 public price; //unit is 10**18
+    uint256 public baseReserve;
+    uint256 public quoteReserve;
 
     constructor(address base, address quote, uint256 _price) {
         _BASE_ = base;
         _QUOTE_  = quote;
+        console.log("init price:", _price);
         price = _price;
     }
 
@@ -51,16 +53,25 @@ contract MockAdapter is IDODOAdapter{
     }
 
     function sellQuote(address to, address pool, bytes memory data) external override {
+        console.log("base Price:", price);
         uint256 quoteIn = IERC20(_QUOTE_).balanceOf(address(this)) - quoteReserve;
+        console.log("quoteIn:", quoteIn);
         uint256 outBase = DecimalMath.mulFloor(quoteIn, price);
+        console.log("outBase:", outBase);
         IERC20(_BASE_).transfer(to, outBase);
         
         update();
     }
 
-    function externalSwap(address to, address fromToken, address toToken, uint256 fromAmount) external {
-        IERC20(fromToken).transferFrom(msg.sender, address(this), fromAmount);
+    function externalSwap(address to, address fromToken, address toToken, uint256 fromAmount) external payable{
+        if(fromToken != _ETH_) {
+            IERC20(fromToken).transferFrom(msg.sender, address(this), fromAmount);
+        } 
         uint256 outAmount = DecimalMath.mulFloor(fromAmount, price);
         IERC20(toToken).transfer(to, outAmount);
+    }
+
+    function externalSwapFail(address to, address fromToken, address toToken, uint256 fromAmount) external payable{
+        require(false, "external swap failed");
     }
 }
