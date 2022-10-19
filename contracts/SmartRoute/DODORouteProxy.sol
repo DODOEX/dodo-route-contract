@@ -26,7 +26,9 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 /// front-end users could take certain route fee rebate from each swap. Wherein dodo will get a fixed percentage, 
 /// and front-end users could assign any proportion through function parameters.
 /// @dev dependence: DODOApprove.sol / DODOApproveProxy.sol / IDODOAdapter.sol
-/// DODOApprove and DODOApproveProxy used to manage user's token, all user's token must be claimed through DODOApproveProxy and DODOApprove
+/// In dodo's contract system, there is only one approve entrance DODOApprove.sol. DODOApprove manages DODOApproveProxy,
+/// Any contract which needs claim user's tokens must be registered in DODOApproveProxy. They used in DODORouteProxy are 
+/// to manage user's token, all user's token must be claimed through DODOApproveProxy and DODOApprove
 /// IDODOAdapter determine the interface of adapter, in which swap happened. There are different adapters for different
 /// pools. Adapter addresses are parameters contructed off chain so they are loose coupling with routeProxy.
 /// adapters have two interface functions. func sellBase(address to, address pool, bytes memory moreInfo) and func sellQuote(address to, address pool, bytes memory moreInfo)
@@ -431,8 +433,7 @@ contract DODORouteProxy is Ownable {
         }
     }
 
-    /// @notice In dodo's contract system, there is only one approve entrance DODOApprove.sol.
-    /// before the first pool swap, contract call _deposit to get ERC20 token through DODOApprove/transfer ETH to WETH
+    /// @notice before the first pool swap, contract call _deposit to get ERC20 token through DODOApprove/transfer ETH to WETH
     function _deposit(
         address from,
         address to,
