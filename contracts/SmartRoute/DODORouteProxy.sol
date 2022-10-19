@@ -384,11 +384,12 @@ contract DODORouteProxy is Ownable {
         address[] memory assetFrom
     ) internal {
         for (uint256 i = 1; i < splitNumber.length; i++) {
+            // begin one split(one token pair with one or more pools)
             // define midtoken address, ETH -> WETH address
             uint256 curTotalAmount = IERC20(midToken[i]).tokenBalanceOf(assetFrom[i - 1]);
             uint256 curTotalWeight = totalWeight;
 
-            // one split all pool swap
+            // split amount into all pools if needed, transverse all pool in this split
             for (uint256 j = splitNumber[i - 1]; j < splitNumber[i]; j++) {
                 PoolInfo memory curPoolInfo;
                 {
