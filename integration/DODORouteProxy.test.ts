@@ -4,6 +4,7 @@ import { Contract, Signer, BigNumber } from 'ethers';
 import chai from 'chai';
 import { BigNumber as LocBN} from 'bignumber.js'
 import { solidity } from "ethereum-waffle";
+import { equal } from 'assert';
 chai.use(solidity);
 
 // TODO add approve whitelist test
@@ -152,6 +153,7 @@ describe('DODORouteProxy', function () {
     let afterBalance = await token2.balanceOf(bobAddr)
     let afterReceiver = await token2.balanceOf(proxy1Addr)
     let afterBroker = await token2.balanceOf(brokerAddr)
+    expect(etherToNumber(afterBalance.toString()) == 100.996, "mixSwap token-token failed")
     console.log("mixSwap bob token-token:", etherToNumber(afterBalance.toString()), afterReceiver, afterBroker)
 
     // eth -token
@@ -173,6 +175,7 @@ describe('DODORouteProxy', function () {
     afterBalance = await token2.balanceOf(bobAddr)
     afterReceiver = await token2.balanceOf(proxy1Addr)
     afterBroker = await token2.balanceOf(brokerAddr)
+    expect(etherToNumber(afterBalance)== 101.0458, "mixSwap eth-token failed")
     console.log("mixSwap bob eth-token:", etherToNumber(afterBalance), afterReceiver, afterBroker)
 
     //token -eth
@@ -192,15 +195,17 @@ describe('DODORouteProxy', function () {
     afterBalance = await ethers.provider.getBalance(bobAddr)
     afterReceiver = await token2.balanceOf(proxy1Addr)
     afterBroker = await token2.balanceOf(brokerAddr)
-    console.log("mixSwap bob eth-token:", etherToNumber(afterBalance), afterReceiver, afterBroker)
+    expect(etherToNumber(afterBalance) > 10018, "mixSwap token-eth failed")
+    console.log("mixSwap bob token-eth:", etherToNumber(afterBalance), afterReceiver, afterBroker)
   });
 
   it('multi swap', async () => {
+    let totalWeight = 100
     console.log(brokerAddr, aliceAddr)
     let abiCoder = new ethers.utils.AbiCoder();
     let feeData = await abiCoder.encode(["address", "uint256"], [brokerAddr, "2000000000000000"])
 
-    let poolEdi = 2, weight = 20, dire = 0;
+    let poolEdi = 2, weight = totalWeight, dire = 0;
     let mixPara = (dire << 17) + (weight << 9) + poolEdi;
 
     let sequenceOne = await abiCoder.encode(["address", "address", "uint256", "bytes"], [mockAdapter.address, mockAdapter.address, mixPara, feeData])
@@ -224,7 +229,7 @@ describe('DODORouteProxy', function () {
     await dodoRouteProxy.connect(bob).dodoMutliSwap(
         BIG_NUMBER_1E18.mul(1).toString(),
         "1",
-        [20],
+        //[20],
         [0, 1],
         [token1.address, token2.address],
         [mockAdapter.address, dodoRouteProxy.address],
@@ -235,21 +240,22 @@ describe('DODORouteProxy', function () {
     let afterBalance = await token2.balanceOf(bobAddr)
     let afterReceiver = await token2.balanceOf(proxy1Addr)
     let afterBroker = await token2.balanceOf(brokerAddr)
+    expect(etherToNumber(afterBalance)== 100.996, "multiSwap eth-token failed")
     console.log("multiSwap bob:", etherToNumber(afterBalance.toString()), afterReceiver, afterBroker)
 
     //token - eth 
-    let poolEdi2 = 2, weight2 = 10, dire2 = 0;
+    let poolEdi2 = 2, weight2 = totalWeight / 2, dire2 = 0;
     let mixPara2 = (dire2 << 17) + (weight2 << 9) + poolEdi2;
     let sequence2_1 = await abiCoder.encode(["address", "address", "uint256", "bytes"], [mockAdapter2_w.address, mockAdapter2_w.address, mixPara2, feeData])
 
-    let poolEdi3 = 1, weight3 = 10, dire3 = 1;
+    let poolEdi3 = 1, weight3 = totalWeight / 2, dire3 = 1;
     let mixPara3 = (dire3 << 17) + (weight3 << 9) + poolEdi3;
     let sequence2_2 = await abiCoder.encode(["address", "address", "uint256", "bytes"], [mockAdapterw_2.address, mockAdapterw_2.address, mixPara3, feeData])
 
     await dodoRouteProxy.connect(bob).dodoMutliSwap(
         BIG_NUMBER_1E18.mul(1).toString(),
         "1",
-        [20, 20],
+        //[20, 20],
         [0, 1, 3],
         [token1.address, token1.address, token2.address, weth.address, _ETH_],
         [mockAdapter.address, dodoRouteProxy.address, dodoRouteProxy.address],
@@ -260,17 +266,20 @@ describe('DODORouteProxy', function () {
     afterBalance = await ethers.provider.getBalance(bobAddr)
     afterReceiver = await weth.balanceOf(proxy1Addr)
     afterBroker = await weth.balanceOf(brokerAddr)
+    expect(etherToNumber(afterBalance) > 10038, "multiSwap token-eth failed")
     console.log("multiSwap bob token-eth:", etherToNumber(afterBalance.toString()), afterReceiver, afterBroker)
 
     // eth-token
+    await dodoRouteProxy.connect(alice).changeTotalWeight(120);
+    totalWeight = 120;
     beforeBob = await token2.balanceOf(bobAddr)
-    let poolEdiTwo = 1, weightTwo = 20, direTwo = 0;
+    let poolEdiTwo = 1, weightTwo = totalWeight, direTwo = 0;
     let mixParaTwo = (direTwo << 17) + (weightTwo << 9) + poolEdiTwo;
     let sequenceTwo = await abiCoder.encode(["address", "address", "uint256", "bytes"], [mockAdapterw_2.address, mockAdapterw_2.address, mixParaTwo, feeData])
     await dodoRouteProxy.connect(bob).dodoMutliSwap(
         BIG_NUMBER_1E18.mul(1).toString(),
         "1",
-        [20],
+        //[20],
         [0, 1],
         [_ETH_, weth.address, token2.address],
         [mockAdapterw_2.address, dodoRouteProxy.address],
@@ -283,6 +292,7 @@ describe('DODORouteProxy', function () {
     afterBalance = await token2.balanceOf(bobAddr)
     afterReceiver = await token2.balanceOf(proxy1Addr)
     afterBroker = await token2.balanceOf(brokerAddr)
+    expect(etherToNumber(afterBalance) == 101.0458, "multiSwap eth-token failed")
     console.log("multiSwap bob:", etherToNumber(afterBalance.toString()), etherToNumber(beforeBob), afterReceiver, afterBroker)
   });
 
@@ -327,6 +337,7 @@ describe('DODORouteProxy', function () {
     let afterBalance = await token2.balanceOf(bobAddr)
     let afterReceiver = await token2.balanceOf(proxy1Addr)
     let afterBroker = await token2.balanceOf(brokerAddr)
+    expect(etherToNumber(afterBalance) == 100.996, "externalSwap token-token failed")
     console.log("externalSwap bob:", etherToNumber(afterBalance), afterReceiver, afterBroker)
     
     //token -eth
@@ -349,6 +360,7 @@ describe('DODORouteProxy', function () {
     afterBalance = await ethers.provider.getBalance(bobAddr)
     afterReceiver = await token2.balanceOf(proxy1Addr)
     afterBroker = await token2.balanceOf(brokerAddr)
+    expect(etherToNumber(afterBalance) - etherToNumber(beforeBob) > 0.04, "externalSwap token - eth failed")
     console.log("externalSwap bob token-eth:", etherToNumber(afterBalance) - etherToNumber(beforeBob), afterReceiver, afterBroker)
 
     //eth-token
@@ -373,6 +385,7 @@ describe('DODORouteProxy', function () {
     afterBalance = await token2.balanceOf(bobAddr)
     afterReceiver = await token2.balanceOf(proxy1Addr)
     afterBroker = await token2.balanceOf(brokerAddr)
+    expect(etherToNumber(afterBalance) == 19.92, "externalSwap eth - token failed")
     console.log("externalSwap bob eth-token:", etherToNumber(afterBalance) - etherToNumber(beforeBob), afterReceiver, afterBroker)
   }); 
 
