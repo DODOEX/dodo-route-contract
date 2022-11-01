@@ -45,7 +45,7 @@ describe('DODORouteProxy', function () {
 
     
     const DODORouteProxy = await ethers.getContractFactory('DODORouteProxy');
-    dodoRouteProxy =  await DODORouteProxy.connect(alice).deploy(weth.address, dodoApproveProxy.address);
+    dodoRouteProxy =  await DODORouteProxy.connect(alice).deploy(weth.address, dodoApproveProxy.address, proxy1Addr);
     await dodoApproveProxy.init(aliceAddr, [dodoRouteProxy.address]);
 
     

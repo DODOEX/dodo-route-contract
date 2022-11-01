@@ -1,6 +1,6 @@
 /*
 
-    Copyright 2021 DODO ZOO.
+    Copyright 2022 DODO ZOO.
     SPDX-License-Identifier: Apache-2.0
 
 */
@@ -54,8 +54,8 @@ contract DODORouteProxy is Ownable {
     // Specially for 0x swap from eth, add zero address
     mapping(address => bool) public isApproveWhiteListedContract; 
 
-    // dodo route fee rate, unit is 10**18
-    uint256 public routeFeeRate; 
+    // dodo route fee rate, unit is 10**18, default fee rate is 1.5 * 1e15 / 1e18 = 0.0015 = 0.015%
+    uint256 public routeFeeRate = 1500000000000000; 
     // dodo route fee receiver
     address public routeFeeReceiver;
 
@@ -99,9 +99,14 @@ contract DODORouteProxy is Ownable {
 
     // ============ Constructor ============
 
-    constructor(address payable weth, address dodoApproveProxy) public {
+    constructor(address payable weth, address dodoApproveProxy, address feeReceiver) public {
+        require(feeReceiver != address(0), "DODORouteProxy: feeReceiver invalid");
+        require(dodoApproveProxy != address(0), "DODORouteProxy: dodoApproveProxy invalid");
+        require(weth != address(0), "DODORouteProxy: weth address invalid");
+
         _WETH_ = weth;
         _DODO_APPROVE_PROXY_ = dodoApproveProxy;
+        routeFeeReceiver = feeReceiver;
     }
 
     // ============ Owner only ============
@@ -123,10 +128,12 @@ contract DODORouteProxy is Ownable {
     }
 
     function changeRouteFeeRate(uint256 newFeeRate) public onlyOwner {
+        require(newFeeRate < 10**18, "DODORouteProxy: newFeeRate overflowed");
         routeFeeRate = newFeeRate;
     }
   
     function changeRouteFeeReceiver(address newFeeReceiver) public onlyOwner {
+        require(newFeeReceiver != address(0), "DODORouteProxy: feeReceiver invalid");
         routeFeeReceiver = newFeeReceiver;
     }
 
@@ -466,6 +473,7 @@ contract DODORouteProxy is Ownable {
             toToken = _WETH_;
         }
         (address broker, uint256 brokerFeeRate) = abi.decode(feeData, (address, uint256));
+        require(brokerFeeRate < 10**18, "DODORouteProxy: brokerFeeRate overflowed");
 
         uint256 routeFee = DecimalMath.mulFloor(receiveAmount, routeFeeRate);
         IERC20(toToken).universalTransfer(payable(routeFeeReceiver), routeFee);
