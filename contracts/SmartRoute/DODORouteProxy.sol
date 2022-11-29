@@ -223,7 +223,7 @@ contract DODORouteProxy is Ownable {
         }
         
         // distribute toToken
-        _routeWithdraw(toToken, receiveAmount, feeData, minReturnAmount);
+        receiveAmount = _routeWithdraw(toToken, receiveAmount, feeData, minReturnAmount);
 
         emit OrderHistory(fromToken, toToken, msg.sender, fromTokenAmount, receiveAmount);
     }
@@ -305,7 +305,7 @@ contract DODORouteProxy is Ownable {
         }
 
         // distribute toToken
-        _routeWithdraw(_toToken, receiveAmount, feeData, minReturnAmount);
+        receiveAmount = _routeWithdraw(_toToken, receiveAmount, feeData, minReturnAmount);
 
         emit OrderHistory(fromToken, toToken, msg.sender, fromTokenAmount, receiveAmount);
     }
@@ -371,7 +371,7 @@ contract DODORouteProxy is Ownable {
         }
         }
         // distribute toToken
-        _routeWithdraw(toToken, receiveAmount, feeData, minReturnAmount);
+        receiveAmount = _routeWithdraw(toToken, receiveAmount, feeData, minReturnAmount);
 
         emit OrderHistory(
             midToken[0], //fromToken
@@ -467,7 +467,7 @@ contract DODORouteProxy is Ownable {
         uint256 receiveAmount,
         bytes memory feeData,
         uint256 minReturnAmount
-    ) internal {
+    ) internal returns(uint256 userReceiveAmount) {
         address originToToken = toToken;
         if(toToken == _ETH_ADDRESS_) {
             toToken = _WETH_;
@@ -490,6 +490,8 @@ contract DODORouteProxy is Ownable {
         } else {
             IERC20(toToken).universalTransfer(payable(msg.sender), receiveAmount);
         }
+
+        userReceiveAmount = receiveAmount;
     }
 }
 
