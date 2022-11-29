@@ -150,7 +150,7 @@ contract DODORouteProxy is Ownable {
             IERC20(token).universalTransfer(payable(routeFeeReceiver), restAmount);
         } else {
             uint256 restAmount = address(this).balance;
-            payable(routeFeeReceiver).transfer(restAmount);
+            IERC20(_ETH_ADDRESS_).universalTransfer(payable(routeFeeReceiver), restAmount);
         }
     }
 
@@ -495,7 +495,7 @@ contract DODORouteProxy is Ownable {
         
         if (originToToken == _ETH_ADDRESS_) {
             IWETH(_WETH_).withdraw(receiveAmount);
-            payable(msg.sender).transfer(receiveAmount);
+            IERC20(_ETH_ADDRESS_).universalTransfer(payable(msg.sender), receiveAmount);
         } else {
             IERC20(toToken).universalTransfer(payable(msg.sender), receiveAmount);
         }
