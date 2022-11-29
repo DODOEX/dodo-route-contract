@@ -160,7 +160,8 @@ contract DODORouteProxy is Ownable {
     /// @param approveTarget external swap approve address
     /// @param swapTarget external swap address
     /// @param feeData route fee info
-    /// @param callDataConcat external swap data
+    /// @param callDataConcat external swap data, toAddress need to be routeProxy
+    /// specially when toToken is ETH, use WETH as external calldata's toToken
     function externalSwap(
         address fromToken,
         address toToken,
@@ -188,6 +189,9 @@ contract DODORouteProxy is Ownable {
                 address(this),
                 fromTokenAmount
             );
+        } else {
+            // value check
+            require(msg.value == fromTokenAmount, "DODORouteProxy: invalid ETH amount");
         }
 
         // swap
@@ -198,7 +202,7 @@ contract DODORouteProxy is Ownable {
             toTokenOriginBalance = IERC20(_WETH_).universalBalanceOf(address(this));
         }
 
-        {
+        {  
             require(swapTarget != _DODO_APPROVE_PROXY_, "DODORouteProxy: Risk Target");
             (bool success, bytes memory result) = swapTarget.call{
                 value: fromToken == _ETH_ADDRESS_ ? fromTokenAmount : 0
