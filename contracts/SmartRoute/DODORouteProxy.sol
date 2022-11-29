@@ -14,6 +14,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IWETH } from "../intf/IWETH.sol";
 import { DecimalMath } from "../lib/DecimalMath.sol";
 import { UniversalERC20 } from "./lib/UniversalERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IDODOAdapter } from "./intf/IDODOAdapter.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -425,10 +426,10 @@ contract DODORouteProxy is Ownable {
 
                     if (curPoolInfo.poolEdition == 1) {
                         //For using transferFrom pool (like dodoV1, Curve), pool call transferFrom function to get tokens from adapter
-                        IERC20(midToken[i]).transfer(curPoolInfo.adapter, curAmount);
+                        SafeERC20.safeTransfer(IERC20(midToken[i]), curPoolInfo.adapter, curAmount);
                     } else {
                         //For using transfer pool (like dodoV2), pool determine swapAmount through balanceOf(Token) - reserve
-                        IERC20(midToken[i]).transfer(curPoolInfo.pool, curAmount);
+                        SafeERC20.safeTransfer(IERC20(midToken[i]), curPoolInfo.pool, curAmount);
                     }
                 }
 
