@@ -418,6 +418,10 @@ contract DODORouteProxy is Ownable {
                 // assetFrom[i - 1] is routeProxy when there are more than one pools in this split
                 if (assetFrom[i - 1] == address(this)) {
                     uint256 curAmount = curTotalAmount * curPoolInfo.weight / curTotalWeight;
+                    // last spilt check
+                    if(j == splitNumber[i] - 1) {
+                        curAmount = IERC20(midToken[i]).tokenBalanceOf(address(this));
+                    }
 
                     if (curPoolInfo.poolEdition == 1) {
                         //For using transferFrom pool (like dodoV1, Curve), pool call transferFrom function to get tokens from adapter
