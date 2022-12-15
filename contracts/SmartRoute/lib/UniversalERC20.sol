@@ -24,8 +24,7 @@ library UniversalERC20 {
     ) internal {
         if (amount > 0) {
             if (isETH(token)) {
-                (bool send, ) = to.call{value: amount, gas:10000}("");
-                require(send, "UniversalERC20: dangerous receiver");
+                to.transfer(amount);
             } else {
                 token.safeTransfer(to, amount);
             }
