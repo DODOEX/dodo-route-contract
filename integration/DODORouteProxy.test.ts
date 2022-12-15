@@ -44,7 +44,7 @@ describe('DODORouteProxy', function () {
     await dodoApprove.init(aliceAddr, dodoApproveProxy.address);
 
     
-    const DODORouteProxy = await ethers.getContractFactory('DODORouteProxy');
+    const DODORouteProxy = await ethers.getContractFactory('DODOFeeRouteProxy');
     dodoRouteProxy =  await DODORouteProxy.connect(alice).deploy(weth.address, dodoApproveProxy.address, proxy1Addr);
     await dodoApproveProxy.init(aliceAddr, [dodoRouteProxy.address]);
 
@@ -101,7 +101,6 @@ describe('DODORouteProxy', function () {
     await token2.transfer(mockAdapter3_2.address, BIG_NUMBER_1E18.mul(1000).toString());
     await mockAdapter3_2.connect(alice).update();
 
-    console.log("ok3")
     // approve
     await token1.connect(alice).approve(dodoApprove.address, BIG_NUMBER_1E18.mul(1000).toString())
     await token2.connect(alice).approve(dodoApprove.address, BIG_NUMBER_1E18.mul(1000).toString())
