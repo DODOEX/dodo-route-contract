@@ -34,7 +34,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 /// pools. Adapter addresses are parameters contructed off chain so they are loose coupling with routeProxy.
 /// adapters have two interface functions. func sellBase(address to, address pool, bytes memory moreInfo) and func sellQuote(address to, address pool, bytes memory moreInfo)
 
-contract DODORouteProxy is Ownable {
+contract DODOFeeRouteProxy is Ownable {
 
     using UniversalERC20 for IERC20;
 
@@ -55,7 +55,7 @@ contract DODORouteProxy is Ownable {
     // Specially for 0x swap from eth, add zero address
     mapping(address => bool) public isApproveWhiteListedContract; 
 
-    // dodo route fee rate, unit is 10**18, default fee rate is 1.5 * 1e15 / 1e18 = 0.0015 = 0.015%
+    // dodo route fee rate, unit is 10**18, default fee rate is 1.5 * 1e16 / 1e18 = 0.015 = 0.15%
     uint256 public routeFeeRate = 1500000000000000; 
     // dodo route fee receiver
     address public routeFeeReceiver;
