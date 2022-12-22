@@ -7,8 +7,7 @@ import { solidity } from "ethereum-waffle";
 import { equal } from 'assert';
 chai.use(solidity);
 
-// TODO add approve whitelist test
-// TODO add attack data test 
+
 describe('DODORouteProxy', function () {
   let weth: Contract;
   let dodoApprove: Contract;
@@ -212,7 +211,7 @@ describe('DODORouteProxy', function () {
     function dodoMutliSwap(
         uint256 fromTokenAmount,
         uint256 minReturnAmount,
-        uint256[] memory totalWeight, // TODO: fix totalWeight and del this param
+        uint256[] memory totalWeight, 
         uint256[] memory splitNumber,  
         address[] memory midToken,
         address[] memory assetFrom,

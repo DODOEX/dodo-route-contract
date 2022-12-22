@@ -6,6 +6,7 @@ DODORouteProxy is a new routeProxy contract with fee rebate to manage all route.
 
 
 Inheritaged a template using Foundry && HardHat architecture.
+We use hardhat test.
 
 ## Motivation
 
