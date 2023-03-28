@@ -3,6 +3,7 @@
 pragma solidity 0.8.16;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 import "contracts/DODOApprove.sol";
 import "./mocks/ERC20Mock.sol";
 
@@ -108,5 +109,17 @@ contract DODOApproveTest is Test {
     function testGetDODOProxy() public {
       dodoApprove.init(owner, proxyAddr1);
       assertEq(dodoApprove.getDODOProxy(), proxyAddr1);
+    }
+
+    function testABIEncode() public {
+        bytes memory data = abi.encodeWithSignature(
+            "transferOwnership(address)",
+            //[address(token2), address(token3)],
+            //[token2NewPrice, token3NewPrice]
+            0x041ABa00c57Dd47abC37A2931dF569a2A2cc57Be
+        );
+
+        console.log(1);
+        console.logBytes(data);
     }
 }

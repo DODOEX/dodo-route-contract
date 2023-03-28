@@ -11,5 +11,14 @@ node_modules
 coverage/
 coverage.json
 lcov.info
+report/
 
 .vscode
+
+deployments/
+
+.DS_Store
+tenderly.yaml
+
+.gas*
+docs/
