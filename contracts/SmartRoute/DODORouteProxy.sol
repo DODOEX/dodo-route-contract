@@ -87,6 +87,7 @@ contract DODOFeeRouteProxy is Ownable {
     );
 
     event PositiveSlippage(
+        address token,
         uint256 amount
     );
 
@@ -515,7 +516,7 @@ contract DODOFeeRouteProxy is Ownable {
             IERC20(toToken).universalTransfer(payable(routeFeeReceiver), amount + routeFee);
             receiveAmount = expReturnAmount;
 
-            emit PositiveSlippage(amount);
+            emit PositiveSlippage(toToken, amount);
         } else {
             IERC20(toToken).universalTransfer(payable(routeFeeReceiver), routeFee);
         }
