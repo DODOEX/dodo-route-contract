@@ -86,8 +86,7 @@ contract DODOFeeRouteProxy is Ownable {
         uint256 returnAmount
     );
 
-    event TransferHistory(
-        address token,
+    event PositiveSlippage(
         uint256 amount
     );
 
@@ -504,7 +503,6 @@ contract DODOFeeRouteProxy is Ownable {
         require(brokerFeeRate < 10**18, "DODORouteProxy: brokerFeeRate overflowed");
 
         uint256 routeFee = DecimalMath.mulFloor(receiveAmount, routeFeeRate);
-        IERC20(toToken).universalTransfer(payable(routeFeeReceiver), routeFee);
 
         uint256 brokerFee = DecimalMath.mulFloor(receiveAmount, brokerFeeRate);
         IERC20(toToken).universalTransfer(payable(broker), brokerFee);
@@ -514,9 +512,12 @@ contract DODOFeeRouteProxy is Ownable {
 
         if (receiveAmount > expReturnAmount) {
             uint256 amount = receiveAmount - expReturnAmount;
-            IERC20(toToken).universalTransfer(payable(routeFeeReceiver), amount);
+            IERC20(toToken).universalTransfer(payable(routeFeeReceiver), amount + routeFee);
             receiveAmount = expReturnAmount;
-            emit TransferHistory(toToken, amount);
+
+            emit PositiveSlippage(amount);
+        } else {
+            IERC20(toToken).universalTransfer(payable(routeFeeReceiver), routeFee);
         }
         
         if (originToToken == _ETH_ADDRESS_) {
