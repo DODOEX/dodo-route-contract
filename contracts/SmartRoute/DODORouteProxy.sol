@@ -6,7 +6,6 @@
 */
 
 pragma solidity 0.8.16;
-pragma experimental ABIEncoderV2;
 
 import { IDODOApproveProxy } from "../DODOApproveProxy.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -87,6 +86,11 @@ contract DODOFeeRouteProxy is Ownable {
         uint256 returnAmount
     );
 
+    event PositiveSlippage(
+        address token,
+        uint256 amount
+    );
+
     // ============ Modifiers ============
 
     modifier judgeExpired(uint256 deadLine) {
@@ -100,7 +104,7 @@ contract DODOFeeRouteProxy is Ownable {
 
     // ============ Constructor ============
 
-    constructor(address payable weth, address dodoApproveProxy, address feeReceiver) public {
+    constructor(address payable weth, address dodoApproveProxy, address feeReceiver) {
         require(feeReceiver != address(0), "DODORouteProxy: feeReceiver invalid");
         require(dodoApproveProxy != address(0), "DODORouteProxy: dodoApproveProxy invalid");
         require(weth != address(0), "DODORouteProxy: weth address invalid");
@@ -169,6 +173,7 @@ contract DODOFeeRouteProxy is Ownable {
         address approveTarget,
         address swapTarget,
         uint256 fromTokenAmount,
+        uint256 expReturnAmount,
         uint256 minReturnAmount,
         bytes memory feeData,
         bytes memory callDataConcat,
@@ -204,10 +209,11 @@ contract DODOFeeRouteProxy is Ownable {
         }
 
         {  
+            uint256 valueToSend = fromToken == _ETH_ADDRESS_ ? fromTokenAmount : 0;
             require(swapTarget != _DODO_APPROVE_PROXY_, "DODORouteProxy: Risk Target");
             (bool success, bytes memory result) = swapTarget.call{
-                value: fromToken == _ETH_ADDRESS_ ? fromTokenAmount : 0
-            }(callDataConcat);
+                value: valueToSend
+            }(callDataConcat); 
             // revert with lowlevel info
             if (success == false) {
                 assembly {
@@ -228,7 +234,7 @@ contract DODOFeeRouteProxy is Ownable {
         }
         
         // distribute toToken
-        receiveAmount = _routeWithdraw(toToken, receiveAmount, feeData, minReturnAmount);
+        receiveAmount = _routeWithdraw(toToken, receiveAmount, feeData, expReturnAmount, minReturnAmount);
 
         emit OrderHistory(fromToken, toToken, msg.sender, fromTokenAmount, receiveAmount);
     }
@@ -244,6 +250,7 @@ contract DODOFeeRouteProxy is Ownable {
         address fromToken,
         address toToken,
         uint256 fromTokenAmount,
+        uint256 expReturnAmount,
         uint256 minReturnAmount,
         address[] memory mixAdapters,
         address[] memory mixPairs,
@@ -252,17 +259,24 @@ contract DODOFeeRouteProxy is Ownable {
         bytes[] memory moreInfos,
         bytes memory feeData,
         uint256 deadLine
-    ) external payable judgeExpired(deadLine) returns (uint256 receiveAmount) {
+    ) external payable judgeExpired(deadLine) returns (uint256) {
         require(mixPairs.length > 0, "DODORouteProxy: PAIRS_EMPTY");
         require(mixPairs.length == mixAdapters.length, "DODORouteProxy: PAIR_ADAPTER_NOT_MATCH");
         require(mixPairs.length == assetTo.length - 1, "DODORouteProxy: PAIR_ASSETTO_NOT_MATCH");
         require(minReturnAmount > 0, "DODORouteProxy: RETURN_AMOUNT_ZERO");
 
-        address _toToken = toToken;
-        {
-        uint256 _fromTokenAmount = fromTokenAmount;
         address _fromToken = fromToken;
-
+        address _toToken = toToken;
+        uint256 _fromTokenAmount = fromTokenAmount;
+        uint256 _expReturnAmount = expReturnAmount;
+        uint256 _minReturnAmount = minReturnAmount;
+        address[] memory _mixAdapters = mixAdapters;
+        address[] memory _mixPairs = mixPairs;
+        address[] memory _assetTo = assetTo;
+        uint256 _directions = directions;
+        bytes[] memory _moreInfos = moreInfos;
+        bytes memory _feeData = feeData;
+        
         uint256 toTokenOriginBalance;
         if(_toToken != _ETH_ADDRESS_) {
             toTokenOriginBalance = IERC20(_toToken).universalBalanceOf(address(this));
@@ -271,33 +285,35 @@ contract DODOFeeRouteProxy is Ownable {
         }
 
         // transfer in fromToken
+        bool isETH = _fromToken == _ETH_ADDRESS_;
         _deposit(
             msg.sender,
-            assetTo[0],
+            _assetTo[0],
             _fromToken,
             _fromTokenAmount,
-            _fromToken == _ETH_ADDRESS_
+            isETH
         );
 
         // swap
-        for (uint256 i = 0; i < mixPairs.length; i++) {
-            if (directions & 1 == 0) {
-                IDODOAdapter(mixAdapters[i]).sellBase(
-                    assetTo[i + 1],
-                    mixPairs[i],
-                    moreInfos[i]
+        for (uint256 i = 0; i < _mixPairs.length; i++) {
+            if (_directions & 1 == 0) {
+                IDODOAdapter(_mixAdapters[i]).sellBase(
+                    _assetTo[i + 1],
+                    _mixPairs[i],
+                    _moreInfos[i]
                 );
             } else {
-                IDODOAdapter(mixAdapters[i]).sellQuote(
-                    assetTo[i + 1],
-                    mixPairs[i],
-                    moreInfos[i]
+                IDODOAdapter(_mixAdapters[i]).sellQuote(
+                    _assetTo[i + 1],
+                    _mixPairs[i],
+                    _moreInfos[i]
                 );
             }
-            directions = directions >> 1;
+            _directions = _directions >> 1;
         }
 
         // calculate toToken amount
+        uint256 receiveAmount;
         if(_toToken != _ETH_ADDRESS_) {
             receiveAmount = IERC20(_toToken).universalBalanceOf(address(this)) - (
                 toTokenOriginBalance
@@ -307,12 +323,13 @@ contract DODOFeeRouteProxy is Ownable {
                 toTokenOriginBalance
             );
         }
-        }
-
+        
         // distribute toToken
-        receiveAmount = _routeWithdraw(_toToken, receiveAmount, feeData, minReturnAmount);
+        receiveAmount = _routeWithdraw(_toToken, receiveAmount, _feeData, _expReturnAmount, _minReturnAmount);
 
-        emit OrderHistory(fromToken, toToken, msg.sender, fromTokenAmount, receiveAmount);
+        emit OrderHistory(_fromToken, _toToken, msg.sender, _fromTokenAmount, receiveAmount);
+
+        return receiveAmount;
     }
 
     /// @notice split version, describes one token path with several pools each time. Called one token pair with several pools "one split"
@@ -327,6 +344,7 @@ contract DODOFeeRouteProxy is Ownable {
     /// @param feeData route fee info, bytes decode into broker and brokerFee, determine rebate proportion, brokerFee in [0, 1e18]
     function dodoMutliSwap(
         uint256 fromTokenAmount,
+        uint256 expReturnAmount,
         uint256 minReturnAmount,
         uint256[] memory splitNumber,  
         address[] memory midToken,
@@ -376,7 +394,7 @@ contract DODOFeeRouteProxy is Ownable {
         }
         }
         // distribute toToken
-        receiveAmount = _routeWithdraw(toToken, receiveAmount, feeData, minReturnAmount);
+        receiveAmount = _routeWithdraw(toToken, receiveAmount, feeData, expReturnAmount, minReturnAmount);
 
         emit OrderHistory(
             midToken[0], //fromToken
@@ -475,6 +493,7 @@ contract DODOFeeRouteProxy is Ownable {
         address toToken,
         uint256 receiveAmount,
         bytes memory feeData,
+        uint256 expReturnAmount,
         uint256 minReturnAmount
     ) internal returns(uint256 userReceiveAmount) {
         address originToToken = toToken;
@@ -485,13 +504,22 @@ contract DODOFeeRouteProxy is Ownable {
         require(brokerFeeRate < 10**18, "DODORouteProxy: brokerFeeRate overflowed");
 
         uint256 routeFee = DecimalMath.mulFloor(receiveAmount, routeFeeRate);
-        IERC20(toToken).universalTransfer(payable(routeFeeReceiver), routeFee);
 
         uint256 brokerFee = DecimalMath.mulFloor(receiveAmount, brokerFeeRate);
         IERC20(toToken).universalTransfer(payable(broker), brokerFee);
         
         receiveAmount = receiveAmount - routeFee - brokerFee;
         require(receiveAmount >= minReturnAmount, "DODORouteProxy: Return amount is not enough");
+
+        if (receiveAmount > expReturnAmount) {
+            uint256 amount = receiveAmount - expReturnAmount;
+            IERC20(toToken).universalTransfer(payable(routeFeeReceiver), amount + routeFee);
+            receiveAmount = expReturnAmount;
+
+            emit PositiveSlippage(toToken, amount);
+        } else {
+            IERC20(toToken).universalTransfer(payable(routeFeeReceiver), routeFee);
+        }
         
         if (originToToken == _ETH_ADDRESS_) {
             IWETH(_WETH_).withdraw(receiveAmount);
