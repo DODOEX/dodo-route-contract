@@ -121,7 +121,8 @@ contract DODOGasProxy is Ownable {
         bytes calldata callData
     ) external payable whenNotPaused returns (bytes memory) {
         // Check if target contract is whitelisted
-        require(isWhiteListedContract[approveTarget], "DODOGasProxy: NOT_WHITELISTED");
+        require(isWhiteListedApproveContract[approveTarget], "DODOGasProxy: NOT_WHITELISTED");
+        require(isWhiteListedContract[targetContract], "DODOGasProxy: NOT_WHITELISTED");
         
         // Check and collect gas fee
         uint256 requiredGasFee = chainGasFee[chainId];

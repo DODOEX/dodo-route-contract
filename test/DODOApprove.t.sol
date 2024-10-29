@@ -119,7 +119,7 @@ contract DODOApproveTest is Test {
             0x041ABa00c57Dd47abC37A2931dF569a2A2cc57Be
         );
 
-        console.log(1);
-        console.logBytes(data);
+        //console.log(1);
+        //console.logBytes(data);
     }
 }
