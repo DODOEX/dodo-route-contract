@@ -2,16 +2,16 @@
 pragma solidity 0.8.16;
 pragma experimental ABIEncoderV2;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { UniversalERC20 } from "./lib/UniversalERC20.sol";
 import { IDODOApproveProxy } from "../DODOApproveProxy.sol";
+import { InitializableOwnable } from "../lib/InitializableOwnable.sol";
 
 /// @title DODOGasProxy
 /// @author DODO Breeder
 /// @notice A proxy contract that charges gas fees for cross-chain transactions
-contract DODOGasProxy is Ownable {
+contract DODOGasProxy is InitializableOwnable {
     using UniversalERC20 for IERC20;
     using SafeERC20 for IERC20;
 
@@ -58,7 +58,8 @@ contract DODOGasProxy is Ownable {
 
     // ============ Constructor ============
 
-    constructor(address _bot, address dodoApproveProxy) {
+    constructor(address _owner, address _bot, address dodoApproveProxy) {
+        initOwner(_owner);
         require(_bot != address(0), "DODOGasProxy: BOT_INVALID");
         require(dodoApproveProxy != address(0), "DODOGasProxy: DODO_APPROVE_PROXY_INVALID");
         bot = _bot;
@@ -76,7 +77,7 @@ contract DODOGasProxy is Ownable {
 
     /// @notice Withdraw all assets from contract
     function withdraw() external onlyOwner {
-        payable(owner()).transfer(address(this).balance);
+        payable(_OWNER_).transfer(address(this).balance);
     }
 
     /// @notice Set pause state

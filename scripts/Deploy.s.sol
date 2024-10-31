@@ -29,6 +29,7 @@ contract DeployScript is Script {
 
         // Deploy DODOGasProxy
         DODOGasProxy gasProxy = new DODOGasProxy(
+            deployer,
             bot,
             address(dodoApproveProxy)
         );

@@ -58,7 +58,7 @@ contract DODOGasProxyTest is Test {
         dodoApprove.init(owner, address(dodoApproveProxy));
         
         // Deploy GasProxy
-        proxy = new DODOGasProxy(bot, address(dodoApproveProxy));
+        proxy = new DODOGasProxy(owner, bot, address(dodoApproveProxy));
         
         // Initialize DODOApproveProxy with GasProxy
         address[] memory proxies = new address[](1);
@@ -114,7 +114,7 @@ contract DODOGasProxyTest is Test {
     function testSetBotFailNotOwner() public {
         address newBot = makeAddr("newBot");
         vm.prank(user);
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert("NOT_OWNER");
         proxy.setBot(newBot);
     }
     
