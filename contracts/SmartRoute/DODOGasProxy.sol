@@ -13,12 +13,14 @@ import { IDODOApproveProxy } from "../DODOApproveProxy.sol";
 /// @notice A proxy contract that charges gas fees for cross-chain transactions
 contract DODOGasProxy is Ownable {
     using UniversalERC20 for IERC20;
+    using SafeERC20 for IERC20;
 
     // ============ Storage ============
     
     address constant _ETH_ADDRESS_ = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     // DODOApproveProxy address for token claiming
     address public immutable _DODO_APPROVE_PROXY_;
+    uint256 public nonce;
     
     // Gas fee mapping for each target chain
     mapping(uint64 => uint256) public chainGasFee;
@@ -39,7 +41,7 @@ contract DODOGasProxy is Ownable {
     event WhiteListChanged(address indexed target, bool isWhiteListed);
     event WhiteListApproveChanged(address indexed target, bool isWhiteListed);
     event BotChanged(address indexed newBot);
-    event GasFeePaid(address payer, uint64 chainId, uint256 gasFee);
+    event GasFeePaid(address payer, uint64 chainId, uint256 gasFee, bytes32 externalID);
     event PausedStateChanged(bool newState);
 
     // ============ Modifiers ============
@@ -85,22 +87,49 @@ contract DODOGasProxy is Ownable {
 
     // ============ Bot Functions ============
 
-    /// @notice Set gas fee for target chain
-    function setChainGasFee(uint64 chainId, uint256 gasFee) external onlyBot {
-        chainGasFee[chainId] = gasFee;
-        emit GasFeeChanged(chainId, gasFee);
+    /// @notice Batch set gas fees for target chains
+    /// @param chainIds Array of chain IDs
+    /// @param gasFees Array of corresponding gas fees
+    function batchSetChainGasFee(
+        uint64[] calldata chainIds,
+        uint256[] calldata gasFees
+    ) external onlyBot {
+        require(chainIds.length == gasFees.length, "DODOGasProxy: LENGTH_MISMATCH");
+        
+        for (uint256 i = 0; i < chainIds.length; i++) {
+            chainGasFee[chainIds[i]] = gasFees[i];
+            emit GasFeeChanged(chainIds[i], gasFees[i]);
+        }
     }
 
-    /// @notice Set contract whitelist status
-    function setWhiteListContract(address target, bool isWhiteListed) external onlyBot {
-        isWhiteListedContract[target] = isWhiteListed;
-        emit WhiteListChanged(target, isWhiteListed);
+    /// @notice Batch set contract whitelist status
+    /// @param targets Array of target addresses
+    /// @param isWhiteListed Array of whitelist status
+    function batchSetWhiteListContract(
+        address[] calldata targets,
+        bool[] calldata isWhiteListed
+    ) external onlyBot {
+        require(targets.length == isWhiteListed.length, "DODOGasProxy: LENGTH_MISMATCH");
+        
+        for (uint256 i = 0; i < targets.length; i++) {
+            isWhiteListedContract[targets[i]] = isWhiteListed[i];
+            emit WhiteListChanged(targets[i], isWhiteListed[i]);
+        }
     }
 
-    /// @notice Set approve contract whitelist status 
-    function setWhiteListApproveContract(address target, bool isWhiteListed) external onlyBot {
-        isWhiteListedApproveContract[target] = isWhiteListed;
-        emit WhiteListApproveChanged(target, isWhiteListed);
+    /// @notice Batch set approve contract whitelist status
+    /// @param targets Array of target addresses
+    /// @param isWhiteListed Array of whitelist status
+    function batchSetWhiteListApproveContract(
+        address[] calldata targets,
+        bool[] calldata isWhiteListed
+    ) external onlyBot {
+        require(targets.length == isWhiteListed.length, "DODOGasProxy: LENGTH_MISMATCH");
+        
+        for (uint256 i = 0; i < targets.length; i++) {
+            isWhiteListedApproveContract[targets[i]] = isWhiteListed[i];
+            emit WhiteListApproveChanged(targets[i], isWhiteListed[i]);
+        }
     }
 
     // ============ Main Functions ============
@@ -110,29 +139,32 @@ contract DODOGasProxy is Ownable {
     /// @param fromToken Source token address
     /// @param fromTokenAmount Amount of source tokens
     /// @param approveTarget Address to approve tokens for
-    /// @param targetContract Contract to call
+    /// @param executeTarget Contract to execute call on
+    /// @param transferInGasFee Extra amount of gas fee transferred in
     /// @param callData Call data for target contract
     function proxyCall(
         uint64 chainId,
         address fromToken,
         uint256 fromTokenAmount,
         address approveTarget,
-        address targetContract,
+        address executeTarget,
+        uint256 transferInGasFee,
         bytes calldata callData
     ) external payable whenNotPaused returns (bytes memory) {
         // Check if target contract is whitelisted
         require(isWhiteListedApproveContract[approveTarget], "DODOGasProxy: NOT_WHITELISTED");
-        require(isWhiteListedContract[targetContract], "DODOGasProxy: NOT_WHITELISTED");
+        require(isWhiteListedContract[executeTarget], "DODOGasProxy: NOT_WHITELISTED");
         
         // Check and collect gas fee
         uint256 requiredGasFee = chainGasFee[chainId];
         require(requiredGasFee > 0, "DODOGasProxy: GAS_FEE_NOT_SET");
+        require(transferInGasFee > requiredGasFee, "DODOGasProxy: INSUFFICIENT_TRANSFER_IN_GAS_FEE");
         
         // Transfer user tokens
         if(fromToken == _ETH_ADDRESS_) {
-            require(msg.value == fromTokenAmount + requiredGasFee, "DODOGasProxy: INVALID_ETH_AMOUNT");
+            require(msg.value >= fromTokenAmount + transferInGasFee, "DODOGasProxy: INVALID_ETH_AMOUNT");
         } else {
-            require(msg.value == requiredGasFee, "DODOGasProxy: INVALID_GAS_FEE");
+            require(msg.value >= transferInGasFee, "DODOGasProxy: INVALID_GAS_FEE");
             // Use DODOApproveProxy to claim tokens instead of transferFrom
             IDODOApproveProxy(_DODO_APPROVE_PROXY_).claimTokens(
                 fromToken,
@@ -142,14 +174,17 @@ contract DODOGasProxy is Ownable {
             );
             // Approve target contract if needed
             if(approveTarget != address(0)) {
-                IERC20(fromToken).approve(approveTarget, fromTokenAmount);
+                IERC20(fromToken).safeApprove(approveTarget, fromTokenAmount);
             }
         }
         
-        emit GasFeePaid(msg.sender, chainId, requiredGasFee);
+        // generate externalID
+        nonce++;
+        bytes32 externalID = keccak256(abi.encodePacked(block.timestamp, msg.sender, chainId, transferInGasFee, nonce));
+        emit GasFeePaid(msg.sender, chainId, requiredGasFee, externalID);
 
         // Call target contract
-        (bool success, bytes memory result) = targetContract.call{
+        (bool success, bytes memory result) = executeTarget.call{
             value: fromToken == _ETH_ADDRESS_ ? fromTokenAmount : 0
         }(callData);
         

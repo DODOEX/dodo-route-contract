@@ -25,7 +25,7 @@ contract DeployScript is Script {
         dodoApprove.init(deployer, address(dodoApproveProxy));
 
         // Set bot address for DODOGasProxy
-        address bot = 0x...;
+        address bot = 0x1Dc662D3D7De14a57CD369e3a9E774f8F80d4214;
 
         // Deploy DODOGasProxy
         DODOGasProxy gasProxy = new DODOGasProxy(
