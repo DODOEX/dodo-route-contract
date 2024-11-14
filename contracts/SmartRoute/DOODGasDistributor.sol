@@ -50,7 +50,8 @@ contract DOODGasDistributor is InitializableOwnable {
         emit Distribution(to, distributionAmount, externalId);
     }
     
-    function setMaxAmount(uint256 _maxAmount) external onlyOwner {
+    function setMaxAmount(uint256 _maxAmount) external {
+        require(msg.sender == bot || msg.sender == _OWNER_, "Only bot or owner");
         maxAmount = _maxAmount;
         emit MaxAmountUpdated(_maxAmount);
     }
