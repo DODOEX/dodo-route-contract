@@ -25,7 +25,7 @@ interface IDODOApproveProxy {
 contract DODOApproveProxy is InitializableOwnable {
     
     // ============ Storage ============
-    uint256 private constant _TIMELOCK_DURATION_ = 3 days;
+    uint256 private constant _TIMELOCK_DURATION_ = 3;
     mapping (address => bool) public _IS_ALLOWED_PROXY_;
     uint256 public _TIMELOCK_;
     address public _PENDING_ADD_DODO_PROXY_;

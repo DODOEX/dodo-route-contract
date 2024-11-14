@@ -5,11 +5,22 @@ cache-hardhat/
 cache-foundry/
 cache/
 out/
+broadcast/
+
 
 node_modules
 
 coverage/
 coverage.json
 lcov.info
+report/
 
 .vscode
+
+deployments/
+
+.DS_Store
+tenderly.yaml
+
+.gas*
+docs/
